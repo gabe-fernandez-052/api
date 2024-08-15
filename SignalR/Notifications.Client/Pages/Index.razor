@@ -1,0 +1,65 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.SignalR.Client 
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<div class="form-group">
+    <label>
+        Message: <input @bind="_userInput">
+    </label>
+    <button @onclick="Send" disabled="@(!IsConnected)">Send</button>
+</div>
+
+Messages from the server 👇
+
+<ul>
+    @foreach (var message in _messages)
+    {
+        <li>@message</li>
+    }
+</ul>
+
+@code
+{
+    private HubConnection? _hubConnection;
+    private string? _userInput;
+    private readonly List<string> _messages = new();
+    private static Guid _guid = Guid.NewGuid();
+
+    public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl("https://localhost:44363/notifications")
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<string>("ReceiveNotification", message =>
+        {
+            _messages.Add(message);
+
+            InvokeAsync(StateHasChanged);
+        });
+
+        await _hubConnection.StartAsync();
+    }
+
+    private async Task Send()
+    {
+        if (IsConnected)
+        {
+            await _hubConnection.SendAsync("SendNotification", $"Message: {_userInput}. Instance Id: {_guid}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}
